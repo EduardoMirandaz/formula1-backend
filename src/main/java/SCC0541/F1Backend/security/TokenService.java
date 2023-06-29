@@ -1,8 +1,7 @@
 package SCC0541.F1Backend.security;
 
+import SCC0541.F1Backend.dtos.TokenDTO;
 import SCC0541.F1Backend.models.UsuarioModel;
-
-
 import SCC0541.F1Backend.services.UsuarioService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +29,7 @@ public class TokenService {
 
     private final UsuarioService usuarioService;
 
-    public String getToken(UsuarioModel usuarioModel) {
+    public TokenDTO getToken(UsuarioModel usuarioModel) {
 
         Date now = new Date();
 
@@ -40,17 +38,21 @@ public class TokenService {
         // poderá ser :'Administrador', 'Escuderia' OU 'Piloto'
         List<String> listaDeCargos = List.of(usuarioModel.getTipo());
 
+        int id = usuarioModel.getUserId();
+
+        Integer idOriginal = usuarioModel.getIdOriginal() != null ? usuarioModel.getIdOriginal() : null;
+
         String token = Jwts.builder()
                 .setIssuer("F1-Backend")
-                .claim("id", usuarioModel.getUserId())
-                .claim("originalId", usuarioModel.getIdOriginal())
+                .claim("id", id)
+                .claim("idOriginal", idOriginal)
                 .claim("roles", listaDeCargos)
                 .setIssuedAt(now)
                 .setExpiration(exp)
                 .signWith(SignatureAlgorithm.HS256, secret)
                 .compact();
 
-        return "Bearer " + token;
+        return new TokenDTO(token, listaDeCargos);
     }
 
     public UsernamePasswordAuthenticationToken isValid(String token) {
@@ -59,13 +61,11 @@ public class TokenService {
             return null;
         }
 
-        Claims body = Jwts.parser()
-                .setSigningKey(secret)
-                .parseClaimsJws(token)
-                .getBody();
+
+        Claims body = recoverBodyFromToken(token);
 
         Integer idUsuario = body.get("id", Integer.class);
-        Integer originalIdUsuario = body.get("originalId", Integer.class);
+
 
         if (idUsuario != null){
 
@@ -93,6 +93,13 @@ public class TokenService {
             return usernamePasswordAuthenticationToken;
         }
         return null;
+    }
+
+    private Claims recoverBodyFromToken(String token) {
+        return Jwts.parser()
+                .setSigningKey(secret)
+                .parseClaimsJws(token)
+                .getBody();
     }
 
 
